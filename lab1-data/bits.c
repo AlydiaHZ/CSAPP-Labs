@@ -328,7 +328,28 @@ int howManyBits(int x) {
  *   Rating: 4
  */
 unsigned floatScale2(unsigned uf) {
-  return 2;
+  int sign = uf >> 31, exp = uf >> 23 & 0xFF, frac = uf & 0x7FFFFF;
+
+  if (exp == 0xFF) // NAN ∞ 
+    return uf;
+
+  if (exp != 0) { // 规格数
+    exp += 1;
+    return sign << 31 | exp << 23 | frac;
+  }
+
+  if (frac != 0) // 非规格数
+  {
+    if ((frac >> 22) & 1) { // 高位移出
+      exp = 1;
+      frac = (frac << 1) & 0x7FFFFF;
+    } else {    
+      frac <<= 1;
+    }
+    return sign << 31 | exp << 23 | frac;
+  }
+  
+  return uf; // 0
 }
 /* 
  * floatFloat2Int - Return bit-level equivalent of expression (int) f
