@@ -328,29 +328,29 @@ int howManyBits(int x) {
  *   Rating: 4
  */
 unsigned floatScale2(unsigned uf) {
-  int sign = uf >> 31, exp = uf >> 23 & 0xFF, frac = uf & 0x7FFFFF;
+  int sign = uf >> 31;
+  int exp  = (uf >> 23) & 0xFF;
+  int frac = uf & 0x7FFFFF;
 
-  if (exp == 0xFF) // NAN ∞ 
+  // NaN or infinity
+  if (exp == 0xFF)
     return uf;
 
-  if (exp != 0) { // 规格数
+  if (exp == 0) {
+    // denormalized or zero
+    frac <<= 1;
+    if (frac & 0x800000) { // 转为规格化
+        exp = 1;
+        frac &= 0x7FFFFF;
+    }
+  } else {
+    // normalized
     exp += 1;
-    return sign << 31 | exp << 23 | frac;
   }
 
-  if (frac != 0) // 非规格数
-  {
-    if ((frac >> 22) & 1) { // 高位移出
-      exp = 1;
-      frac = (frac << 1) & 0x7FFFFF;
-    } else {    
-      frac <<= 1;
-    }
-    return sign << 31 | exp << 23 | frac;
-  }
-  
-  return uf; // 0
+  return (sign << 31) | (exp << 23) | frac;
 }
+
 /* 
  * floatFloat2Int - Return bit-level equivalent of expression (int) f
  *   for floating point argument f.
@@ -364,7 +364,30 @@ unsigned floatScale2(unsigned uf) {
  *   Rating: 4
  */
 int floatFloat2Int(unsigned uf) {
-  return 2;
+  int sign = uf >> 31;
+  int exp  = (uf >> 23) & 0xFF;
+  int frac = uf & 0x7FFFFF;
+  int E;
+  int val;
+
+  if (exp == 0xFF) return 0x80000000u;
+
+  E = exp - 127;
+
+  if (E < 0) return 0;
+  
+  if (E > 30) return 0x80000000u;
+
+  val = frac | 0x800000;
+
+  if (E > 23) 
+    val <<= (E - 23);
+  else 
+    val >>= (23 - E);
+
+  if (sign) val = -val;
+
+  return val;
 }
 /* 
  * floatPower2 - Return bit-level equivalent of the expression 2.0^x
@@ -380,5 +403,18 @@ int floatFloat2Int(unsigned uf) {
  *   Rating: 4
  */
 unsigned floatPower2(int x) {
-  return 2;
+    /* too large → +INF */
+    if (x > 127)
+        return 0x7F800000;
+
+    /* too small → 0 */
+    if (x < -149)
+        return 0;
+
+    /* denormalized */
+    if (x < -126)
+        return 1 << (x + 149);
+
+    /* normalized */
+    return (x + 127) << 23;
 }
